@@ -245,13 +245,16 @@
   bottom: 0;
   left: 0;
   right: 0;
-  background: rgba(5, 5, 5, 0.9);
+  background: rgba(5, 5, 5, 0.95);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-top: 1px solid var(--border);
   z-index: 50;
   padding: 0.5rem 0;
   padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
 }
 
 /* Header gradient */
