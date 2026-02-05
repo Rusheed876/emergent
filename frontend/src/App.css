@@ -262,8 +262,8 @@
 /* Floating action button */
 .fab {
   position: fixed;
-  bottom: 5rem;
-  right: 1rem;
+  bottom: 6rem;
+  right: 1.5rem;
   width: 3.5rem;
   height: 3.5rem;
   border-radius: 50%;
@@ -275,7 +275,7 @@
   box-shadow: 0 4px 20px rgba(0, 240, 255, 0.4);
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.3s;
-  z-index: 40;
+  z-index: 60;
 }
 
 .fab:hover {
