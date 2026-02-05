@@ -118,7 +118,7 @@ class PulseAPITester:
         # Generate unique test user
         timestamp = datetime.now().strftime("%H%M%S")
         test_user = {
-            "email": f"test_user_{timestamp}@pulse.test",
+            "email": f"test_user_{timestamp}@example.com",
             "password": "TestPass123!",
             "username": f"testuser_{timestamp}",
             "city": "miami"
