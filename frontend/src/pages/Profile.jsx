@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth, useCity, API } from "@/App";
 import axios from "axios";
 import { motion } from "framer-motion";
@@ -15,7 +15,10 @@ import {
   Heart,
   Calendar,
   Edit2,
-  CheckCircle
+  CheckCircle,
+  Rocket,
+  Ticket,
+  Crown
 } from "lucide-react";
 import Navigation from "@/components/Navigation";
 import { toast } from "sonner";
