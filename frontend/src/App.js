@@ -118,6 +118,8 @@ function App() {
               <Route path="/chat" element={<Chat />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/subscriptions" element={<Subscriptions />} />
+              <Route path="/boost" element={<BoostEvent />} />
               
               {/* Catch all */}
               <Route path="*" element={<Navigate to="/" replace />} />
