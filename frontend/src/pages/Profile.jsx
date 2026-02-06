@@ -39,6 +39,7 @@ const cityOptions = [
 
 export default function Profile() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, logout, fetchUser } = useAuth();
   const { selectedCity, selectCity } = useCity();
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -52,6 +53,7 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [tickets, setTickets] = useState([]);
 
   useEffect(() => {
     if (!user) {
@@ -68,7 +70,41 @@ export default function Profile() {
     });
 
     fetchNotifications();
+    fetchTickets();
+    
+    // Check for subscription success
+    const subscriptionStatus = searchParams.get("subscription");
+    const sessionId = searchParams.get("session_id");
+    
+    if (subscriptionStatus === "success" && sessionId) {
+      pollPaymentStatus(sessionId);
+    }
   }, [user]);
+
+  const pollPaymentStatus = async (sessionId, attempts = 0) => {
+    if (attempts >= 5) return;
+    
+    try {
+      const response = await axios.get(`${API}/payments/status/${sessionId}`);
+      if (response.data.payment_status === "paid") {
+        toast.success("Subscription activated! You're now a verified promoter.");
+        fetchUser();
+      } else {
+        setTimeout(() => pollPaymentStatus(sessionId, attempts + 1), 2000);
+      }
+    } catch (error) {
+      console.error("Error checking payment:", error);
+    }
+  };
+
+  const fetchTickets = async () => {
+    try {
+      const response = await axios.get(`${API}/user/tickets`);
+      setTickets(response.data.tickets || []);
+    } catch (error) {
+      console.error("Error fetching tickets:", error);
+    }
+  };
 
   const fetchNotifications = async () => {
     try {
