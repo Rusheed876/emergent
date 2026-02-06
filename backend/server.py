@@ -28,12 +28,48 @@ SECRET_KEY = os.environ.get('JWT_SECRET', 'pulse-of-the-city-secret-key-2024')
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 7
 
+# Stripe Config
+STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY')
+
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
 app = FastAPI(title="Pulse of the City API")
 api_router = APIRouter(prefix="/api")
+
+# ============== SUBSCRIPTION & PRICING ==============
+
+PROMOTER_SUBSCRIPTIONS = {
+    "pro": {
+        "name": "Pro",
+        "price": 49.00,
+        "features": ["Unlimited events", "Verified badge", "Basic analytics", "Priority support"]
+    },
+    "premium": {
+        "name": "Premium", 
+        "price": 149.00,
+        "features": ["Everything in Pro", "Push notifications", "Featured placement", "Advanced analytics"]
+    }
+}
+
+EVENT_BOOST_PACKAGES = {
+    "featured_24h": {
+        "name": "Featured Event (24h)",
+        "price": 35.00,
+        "duration_hours": 24
+    },
+    "weekend_spotlight": {
+        "name": "Weekend Spotlight",
+        "price": 175.00,
+        "duration_hours": 72
+    },
+    "city_takeover": {
+        "name": "City Takeover",
+        "price": 750.00,
+        "duration_hours": 24
+    }
+}
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
