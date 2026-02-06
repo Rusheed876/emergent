@@ -12,6 +12,8 @@ import Chat from "@/pages/Chat";
 import Profile from "@/pages/Profile";
 import Auth from "@/pages/Auth";
 import EventDetail from "@/pages/EventDetail";
+import Subscriptions from "@/pages/Subscriptions";
+import BoostEvent from "@/pages/BoostEvent";
 
 // Context
 const AuthContext = createContext(null);
