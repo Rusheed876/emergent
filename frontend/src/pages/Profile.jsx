@@ -291,6 +291,63 @@ export default function Profile() {
           transition={{ delay: 0.2 }}
           className="space-y-2"
         >
+          {/* Become Promoter / Subscription */}
+          {!user.is_promoter ? (
+            <button
+              data-testid="become-promoter-btn"
+              onClick={() => navigate("/subscriptions")}
+              className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-[#FF0055]/20 to-[#FF6B00]/20 rounded-xl border border-[#FF0055]/30 hover:border-[#FF0055]/50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#FF0055]/20 flex items-center justify-center">
+                  <Rocket className="w-5 h-5 text-[#FF0055]" />
+                </div>
+                <div className="text-left">
+                  <p className="font-semibold">Become a Promoter</p>
+                  <p className="text-sm text-gray-500">Get verified & post events</p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-[#FF0055]" />
+            </button>
+          ) : (
+            <div className="p-4 bg-[#121212] rounded-xl border border-[#CCFF00]/30">
+              <div className="flex items-center gap-3">
+                <Crown className="w-6 h-6 text-[#CCFF00]" />
+                <div>
+                  <p className="font-semibold text-[#CCFF00]">
+                    {user.subscription_plan?.toUpperCase() || "PRO"} Promoter
+                  </p>
+                  <p className="text-sm text-gray-500">Verified account with premium features</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* My Tickets */}
+          {tickets.length > 0 && (
+            <div className="p-4 bg-[#121212] rounded-xl border border-[#262626]">
+              <div className="flex items-center gap-3 mb-3">
+                <Ticket className="w-5 h-5 text-[#00F0FF]" />
+                <p className="font-semibold">My Tickets ({tickets.length})</p>
+              </div>
+              <div className="space-y-2">
+                {tickets.slice(0, 3).map((ticket) => (
+                  <button
+                    key={ticket.id}
+                    onClick={() => navigate(`/events/${ticket.event_id}`)}
+                    className="w-full flex items-center justify-between p-3 bg-[#1A1A1A] rounded-lg hover:bg-[#262626] transition-colors"
+                  >
+                    <div className="text-left">
+                      <p className="font-medium text-sm">{ticket.event?.title || "Event"}</p>
+                      <p className="text-xs text-gray-500">{ticket.quantity} ticket(s)</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-500" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <button
             data-testid="notifications-btn"
             className="w-full flex items-center justify-between p-4 bg-[#121212] rounded-xl border border-[#262626] hover:border-[#00F0FF]/30 transition-colors"
