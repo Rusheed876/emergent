@@ -558,6 +558,344 @@ async def get_vibes():
 async def root():
     return {"message": "Pulse of the City API", "version": "1.0.0"}
 
+# ============== PAYMENT ROUTES ==============
+
+@api_router.get("/pricing/subscriptions")
+async def get_subscription_pricing():
+    """Get promoter subscription plans"""
+    return {"subscriptions": PROMOTER_SUBSCRIPTIONS}
+
+@api_router.get("/pricing/boosts")
+async def get_boost_pricing():
+    """Get event boost packages"""
+    return {"boosts": EVENT_BOOST_PACKAGES}
+
+@api_router.post("/payments/ticket")
+async def purchase_ticket(request: TicketPurchaseRequest, http_request: Request, user = Depends(get_current_user)):
+    """Purchase tickets for an event"""
+    # Get event
+    event = await db.events.find_one({"id": request.event_id}, {"_id": 0})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Parse price (e.g., "$20 USD" -> 20.00)
+    price_str = event.get("price", "$0")
+    try:
+        price = float(price_str.replace("$", "").replace("USD", "").replace(",", "").strip())
+    except:
+        price = 20.00  # Default price
+    
+    total_amount = price * request.quantity
+    
+    # Create Stripe checkout
+    webhook_url = f"{str(http_request.base_url).rstrip('/')}/api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+    
+    success_url = f"{request.origin_url}/events/{request.event_id}?payment=success&session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{request.origin_url}/events/{request.event_id}?payment=cancelled"
+    
+    checkout_request = CheckoutSessionRequest(
+        amount=total_amount,
+        currency="usd",
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata={
+            "type": "ticket",
+            "event_id": request.event_id,
+            "event_title": event.get("title", ""),
+            "user_id": user["id"],
+            "quantity": str(request.quantity)
+        }
+    )
+    
+    session = await stripe_checkout.create_checkout_session(checkout_request)
+    
+    # Save transaction
+    transaction_id = str(uuid.uuid4())
+    transaction = {
+        "id": transaction_id,
+        "user_id": user["id"],
+        "session_id": session.session_id,
+        "amount": total_amount,
+        "currency": "usd",
+        "payment_type": "ticket",
+        "payment_status": "pending",
+        "metadata": {
+            "event_id": request.event_id,
+            "event_title": event.get("title", ""),
+            "quantity": str(request.quantity)
+        },
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.payment_transactions.insert_one(transaction)
+    
+    return {"checkout_url": session.url, "session_id": session.session_id}
+
+@api_router.post("/payments/boost")
+async def purchase_boost(request: BoostPurchaseRequest, http_request: Request, user = Depends(get_current_user)):
+    """Purchase an event boost package"""
+    # Validate package
+    if request.package_id not in EVENT_BOOST_PACKAGES:
+        raise HTTPException(status_code=400, detail="Invalid boost package")
+    
+    package = EVENT_BOOST_PACKAGES[request.package_id]
+    
+    # Get event
+    event = await db.events.find_one({"id": request.event_id}, {"_id": 0})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Verify user owns event
+    if event.get("promoter_id") != user["id"]:
+        raise HTTPException(status_code=403, detail="You can only boost your own events")
+    
+    # Create Stripe checkout
+    webhook_url = f"{str(http_request.base_url).rstrip('/')}/api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+    
+    success_url = f"{request.origin_url}/events/{request.event_id}?boost=success&session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{request.origin_url}/events/{request.event_id}"
+    
+    checkout_request = CheckoutSessionRequest(
+        amount=package["price"],
+        currency="usd",
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata={
+            "type": "boost",
+            "package_id": request.package_id,
+            "package_name": package["name"],
+            "event_id": request.event_id,
+            "user_id": user["id"],
+            "duration_hours": str(package["duration_hours"])
+        }
+    )
+    
+    session = await stripe_checkout.create_checkout_session(checkout_request)
+    
+    # Save transaction
+    transaction_id = str(uuid.uuid4())
+    transaction = {
+        "id": transaction_id,
+        "user_id": user["id"],
+        "session_id": session.session_id,
+        "amount": package["price"],
+        "currency": "usd",
+        "payment_type": "boost",
+        "payment_status": "pending",
+        "metadata": {
+            "package_id": request.package_id,
+            "package_name": package["name"],
+            "event_id": request.event_id
+        },
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.payment_transactions.insert_one(transaction)
+    
+    return {"checkout_url": session.url, "session_id": session.session_id}
+
+@api_router.post("/payments/subscription")
+async def purchase_subscription(request: SubscriptionPurchaseRequest, http_request: Request, user = Depends(get_current_user)):
+    """Purchase a promoter subscription"""
+    # Validate plan
+    if request.plan_id not in PROMOTER_SUBSCRIPTIONS:
+        raise HTTPException(status_code=400, detail="Invalid subscription plan")
+    
+    plan = PROMOTER_SUBSCRIPTIONS[request.plan_id]
+    
+    # Create Stripe checkout
+    webhook_url = f"{str(http_request.base_url).rstrip('/')}/api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+    
+    success_url = f"{request.origin_url}/profile?subscription=success&session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{request.origin_url}/profile"
+    
+    checkout_request = CheckoutSessionRequest(
+        amount=plan["price"],
+        currency="usd",
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata={
+            "type": "subscription",
+            "plan_id": request.plan_id,
+            "plan_name": plan["name"],
+            "user_id": user["id"]
+        }
+    )
+    
+    session = await stripe_checkout.create_checkout_session(checkout_request)
+    
+    # Save transaction
+    transaction_id = str(uuid.uuid4())
+    transaction = {
+        "id": transaction_id,
+        "user_id": user["id"],
+        "session_id": session.session_id,
+        "amount": plan["price"],
+        "currency": "usd",
+        "payment_type": "subscription",
+        "payment_status": "pending",
+        "metadata": {
+            "plan_id": request.plan_id,
+            "plan_name": plan["name"]
+        },
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.payment_transactions.insert_one(transaction)
+    
+    return {"checkout_url": session.url, "session_id": session.session_id}
+
+@api_router.get("/payments/status/{session_id}")
+async def get_payment_status(session_id: str, http_request: Request, user = Depends(get_current_user)):
+    """Check payment status and update accordingly"""
+    # Get transaction
+    transaction = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    # Check if already processed
+    if transaction["payment_status"] == "paid":
+        return {"status": "paid", "message": "Payment already processed"}
+    
+    # Get status from Stripe
+    webhook_url = f"{str(http_request.base_url).rstrip('/')}/api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+    
+    status = await stripe_checkout.get_checkout_status(session_id)
+    
+    # Update transaction
+    new_status = status.payment_status if status.payment_status else "pending"
+    await db.payment_transactions.update_one(
+        {"session_id": session_id},
+        {"$set": {
+            "payment_status": new_status,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    # Process successful payment
+    if new_status == "paid" and transaction["payment_status"] != "paid":
+        await process_successful_payment(transaction)
+    
+    return {
+        "status": status.status,
+        "payment_status": new_status,
+        "amount": status.amount_total / 100,  # Convert cents to dollars
+        "currency": status.currency
+    }
+
+async def process_successful_payment(transaction: dict):
+    """Process a successful payment based on type"""
+    payment_type = transaction["payment_type"]
+    metadata = transaction["metadata"]
+    user_id = transaction["user_id"]
+    
+    if payment_type == "ticket":
+        # Add user to event attendees
+        event_id = metadata.get("event_id")
+        quantity = int(metadata.get("quantity", 1))
+        await db.events.update_one(
+            {"id": event_id},
+            {"$inc": {"attendee_count": quantity}}
+        )
+        # Create ticket record
+        ticket = {
+            "id": str(uuid.uuid4()),
+            "event_id": event_id,
+            "user_id": user_id,
+            "quantity": quantity,
+            "transaction_id": transaction["id"],
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.tickets.insert_one(ticket)
+        
+    elif payment_type == "boost":
+        # Activate event boost
+        event_id = metadata.get("event_id")
+        duration_hours = int(metadata.get("duration_hours", 24))
+        boost_until = datetime.now(timezone.utc) + timedelta(hours=duration_hours)
+        
+        await db.events.update_one(
+            {"id": event_id},
+            {"$set": {
+                "is_featured": True,
+                "boost_until": boost_until.isoformat(),
+                "boost_package": metadata.get("package_name")
+            }}
+        )
+        
+    elif payment_type == "subscription":
+        # Upgrade user to promoter
+        plan_id = metadata.get("plan_id")
+        subscription_until = datetime.now(timezone.utc) + timedelta(days=30)
+        
+        await db.users.update_one(
+            {"id": user_id},
+            {"$set": {
+                "is_promoter": True,
+                "is_verified": True,
+                "subscription_plan": plan_id,
+                "subscription_until": subscription_until.isoformat()
+            }}
+        )
+
+@api_router.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    """Handle Stripe webhooks"""
+    body = await request.body()
+    signature = request.headers.get("Stripe-Signature")
+    
+    try:
+        webhook_url = f"{str(request.base_url).rstrip('/')}/api/webhook/stripe"
+        stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+        webhook_response = await stripe_checkout.handle_webhook(body, signature)
+        
+        if webhook_response.payment_status == "paid":
+            # Find and process transaction
+            transaction = await db.payment_transactions.find_one(
+                {"session_id": webhook_response.session_id}, 
+                {"_id": 0}
+            )
+            if transaction and transaction["payment_status"] != "paid":
+                await db.payment_transactions.update_one(
+                    {"session_id": webhook_response.session_id},
+                    {"$set": {
+                        "payment_status": "paid",
+                        "updated_at": datetime.now(timezone.utc).isoformat()
+                    }}
+                )
+                await process_successful_payment(transaction)
+        
+        return {"status": "success"}
+    except Exception as e:
+        logger.error(f"Webhook error: {e}")
+        return {"status": "error", "message": str(e)}
+
+@api_router.get("/user/tickets")
+async def get_user_tickets(user = Depends(get_current_user)):
+    """Get user's purchased tickets"""
+    tickets = await db.tickets.find({"user_id": user["id"]}, {"_id": 0}).to_list(100)
+    
+    # Enrich with event data
+    for ticket in tickets:
+        event = await db.events.find_one({"id": ticket["event_id"]}, {"_id": 0})
+        if event:
+            ticket["event"] = event
+    
+    return {"tickets": tickets}
+
+@api_router.get("/user/transactions")
+async def get_user_transactions(user = Depends(get_current_user)):
+    """Get user's payment history"""
+    transactions = await db.payment_transactions.find(
+        {"user_id": user["id"]}, 
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    return {"transactions": transactions}
+
 # ============== WEBSOCKET FOR REAL-TIME CHAT ==============
 
 class ConnectionManager:
