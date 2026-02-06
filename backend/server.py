@@ -220,6 +220,33 @@ class Notification(BaseModel):
     is_read: bool = False
     created_at: str
 
+# Payment Models
+class TicketPurchaseRequest(BaseModel):
+    event_id: str
+    quantity: int = 1
+    origin_url: str
+
+class BoostPurchaseRequest(BaseModel):
+    event_id: str
+    package_id: str  # featured_24h, weekend_spotlight, city_takeover
+    origin_url: str
+
+class SubscriptionPurchaseRequest(BaseModel):
+    plan_id: str  # pro, premium
+    origin_url: str
+
+class PaymentTransaction(BaseModel):
+    id: str
+    user_id: str
+    session_id: str
+    amount: float
+    currency: str
+    payment_type: str  # ticket, boost, subscription
+    payment_status: str  # pending, paid, failed, expired
+    metadata: Dict[str, str]
+    created_at: str
+    updated_at: str
+
 # ============== AUTH HELPERS ==============
 
 def create_access_token(data: dict):
